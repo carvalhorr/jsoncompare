@@ -33,3 +33,15 @@ func AddEmptyJsonStringError(errors []JsonComparisonError, part ErrorPart) []Jso
 	})
 	return errors
 }
+
+func AddMissingField(errors []JsonComparisonError, part ErrorPart, fieldName string) []JsonComparisonError {
+	oposite := map[ErrorPart]ErrorPart{
+		JSON1: JSON2,
+		JSON2: JSON1,
+	}
+	errors = append(errors, JsonComparisonError{
+		Part:    part,
+		Message: fmt.Sprintf("\"%s\" not found in %s.", fieldName, oposite[part]),
+	})
+	return errors
+}

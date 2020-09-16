@@ -7,7 +7,7 @@ import (
 )
 
 // Compare two JSONs and return an array of JsonComparisonError with the differences.
-// The two JSONs can be either a string or a struct.
+// The two JSONs can be either string or a struct.
 func Compare(json1, json2 interface{}) []JsonComparisonError {
 	var errors []JsonComparisonError
 	isType1Supported := isTypeSupported(json1)
@@ -27,8 +27,8 @@ func Compare(json1, json2 interface{}) []JsonComparisonError {
 func compare(json1, json2 interface{}, errors []JsonComparisonError) []JsonComparisonError {
 	jsonMap1, errors := toJsonMap(json1, JSON1, errors)
 	jsonMap2, errors := toJsonMap(json2, JSON2, errors)
-	// fmt.Println(jsonMap1, jsonMap2)
-	fmt.Println(jsonStringMatches(jsonMap1, jsonMap2, errors))
+	errors = jsonStringMatches(jsonMap1, jsonMap2, JSON1, errors)
+	errors = jsonStringMatches(jsonMap2, jsonMap1, JSON2, errors)
 	return errors
 }
 
@@ -74,24 +74,28 @@ func getType(json interface{}) string {
 	return reflect.ValueOf(json).Kind().String()
 }
 
-func jsonStringMatches(jsonMap, otherJsonMap map[string]interface{}, errors []JsonComparisonError) bool {
+func jsonStringMatches(jsonMap, otherJsonMap map[string]interface{}, part ErrorPart, errors []JsonComparisonError) []JsonComparisonError {
 	if len(jsonMap) != len(otherJsonMap) {
 		// return false
 	}
 	for key, value := range jsonMap {
 		otherValue, found := otherJsonMap[key]
 		if !found {
-			return false
+			errors = AddMissingField(errors, part, key)
+			return errors
 		}
 		valueType := fmt.Sprintf("%T", value)
 		otherValueType := fmt.Sprintf("%T", otherValue)
 		if valueType != otherValueType {
-			return false
+			return errors
 		}
 		switch valueType {
 		case "map[string]interface {}": // object
-			if !jsonStringMatches(jsonMap[key].(map[string]interface{}), otherJsonMap[key].(map[string]interface{}), errors) {
-				return false
+			lenBefore := len(errors)
+			errors = jsonStringMatches(jsonMap[key].(map[string]interface{}), otherJsonMap[key].(map[string]interface{}), part, errors)
+			lenAfter := len(errors)
+			if lenBefore != lenAfter {
+				return errors
 			}
 			continue
 		case "[]interface {}": // repeated object
@@ -100,7 +104,7 @@ func jsonStringMatches(jsonMap, otherJsonMap map[string]interface{}, errors []Js
 			items := jsonMap[key].([]interface{})
 			otherItems := otherJsonMap[key].([]interface{})
 			if len(items) != len(otherItems) {
-				return false
+				return errors
 			}
 			for _, item := range items {
 				var found = false
@@ -113,8 +117,10 @@ func jsonStringMatches(jsonMap, otherJsonMap map[string]interface{}, errors []Js
 					}
 					switch itemType {
 					case "map[string]interface {}":
-						if jsonStringMatches(item.(map[string]interface{}), otherItem.(map[string]interface{}), errors) {
-							found = true
+						lenBefore := len(errors)
+						errors = jsonStringMatches(item.(map[string]interface{}), otherItem.(map[string]interface{}), part, errors)
+						lenAfter := len(errors)
+						if lenBefore != lenAfter {
 							break
 						}
 					default:
@@ -123,17 +129,16 @@ func jsonStringMatches(jsonMap, otherJsonMap map[string]interface{}, errors []Js
 							break
 						}
 					}
-
 				}
 				if !found {
-					return false
+					return errors
 				}
 			}
 			continue
 		}
 		if value != otherValue {
-			return false
+			return errors
 		}
 	}
-	return true
+	return errors
 }
