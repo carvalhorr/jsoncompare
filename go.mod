@@ -1,4 +1,4 @@
-module github.com/carcalhorr/jsoncompare
+module github.com/carvalhorr/jsoncompare
 
 go 1.14
 
